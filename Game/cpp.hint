@@ -1,0 +1,4 @@
+// Hint files help the Visual Studio IDE interpret Visual C++ identifiers
+// such as names of functions and macros.
+// For more information see https://go.microsoft.com/fwlink/?linkid=865984
+#define RTTI_DECLARATIONS(Type, ParentType) friend class RTTI; protected: static const size_t TypeIdClass() { static int runTimeTypeId = 0; return reinterpret_cast<size_t>(&runTimeTypeId); } public: virtual const size_t& GetType() const override { return Type::TypeIdClass(); } using super = ParentType; virtual bool Is(const size_t id) const override { if (id == TypeIdClass()) { return true; } else { return ParentType::Is(id); } } virtual bool Is(RTTI* const rtti) const override { return Is(rtti->GetType()); }
