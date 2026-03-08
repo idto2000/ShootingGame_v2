@@ -1,4 +1,4 @@
-#include "Timer.h"
+ï»¿#include "Timer.h"
 
 Timer::Timer(float targetTime)
 	: targetTime(targetTime)
@@ -7,7 +7,7 @@ Timer::Timer(float targetTime)
 
 void Timer::Tick(float deltaTime)
 {
-	// °æ°ú ½Ã°£ ¾÷µ¥ÀÌÆ®.
+	// ê²½ê³¼ ì‹œê°„ ì—…ë°ì´íŠ¸.
 	elapsedTime += deltaTime;
 }
 

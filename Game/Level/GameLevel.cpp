@@ -14,12 +14,17 @@
 #include "Level/TitleLevel.h"
 #include "Util/Util.h"
 #include "Actor/Background.h"
+#include "Core/Input.h"
 
+#include "Partition/Bounds.h"
+#include "Partition/QuadTree.h"
+#include "Partition/QuadNode.h"
 
 #include <iostream>
 
 //정적 변수 초기화
 GameLevel* GameLevel::instance = nullptr;
+using namespace Wanted;
 
 GameLevel::GameLevel()
 {
@@ -121,8 +126,36 @@ void GameLevel::Tick(float deltaTime)
 		return;
 	}
 
-	// 쿼드 트리 갱신
-	
+	// 키 입력을 하면 시각화 모드 On/ Off
+	if (Input::Get().GetKeyDown('G'))
+	{
+		isShowQuadTree = !isShowQuadTree;
+	}
+
+	// 이전에 그리고 남은 트기가 있을 경우 지움
+	if (quadTree)
+	{
+		delete quadTree;
+		quadTree = nullptr;
+	}
+
+	// 쿼드 트리 생성 및 갱신
+	// 화면 전체 불러오기
+	Bounds screenBounds(0, 0, Engine::Get().GetWidth(), Engine::Get().GetHeight());
+	quadTree = new QuadTree(screenBounds);
+
+	// 레벨에 있는 모든 액터들을 쿼드 트리에 넣기
+	for (Actor* actor : actors)
+	{
+		if (actor->IsActive())
+		{
+			// Background 타입이 아닌 경우에만 트리 삽입
+			if (!actor->IsTypeOf<Background>())
+			{
+				quadTree->Insert(actor);
+			}
+		}
+	}
 
 	// 충돌 판정 처리.
 	ProcessCollisionPlayerBulletAndEnemy();
@@ -136,6 +169,13 @@ void GameLevel::Tick(float deltaTime)
 void GameLevel::Draw()
 {
 	super::Draw();
+
+	// 시각화가 On이라면 트리 경계선 '+'을 그린다.
+	if (isShowQuadTree && quadTree)
+	{
+		quadTree->DebugDraw();
+		Renderer::Get().Submit("QUADTREE DEBUG : ON", Vector2(1, 2), Color::Green);
+	}
 
 	if (isPlayerDead)
 	{
@@ -189,50 +229,55 @@ void GameLevel::PlayerSpeedBuster()
 
 void GameLevel::ProcessCollisionPlayerBulletAndEnemy()
 {
-	// 플레이어 탄약과 적 액터 필터링.
-	std::vector<Actor*> bullets;
-	std::vector<Enemy*> enemies;
-
-	// 액터 필터링.
-	for (Actor* const actor : actors)
-	{
-		if (actor->IsTypeOf<PlayerBullet>())
-		{
-			bullets.emplace_back(actor);
-			continue;
-		}
-
-		if (actor->IsTypeOf<Enemy>())
-		{
-			enemies.emplace_back(actor->As<Enemy>());
-		}
-	}
-
-	// 판정 안해도 되는지 확인.
-	if (bullets.size() == 0 || enemies.size() == 0)
+	// 예외처리
+	if (!quadTree)
 	{
 		return;
 	}
 
-	// 충돌 판정.
+	// 플레이어 총알만 모아둠
+	std::vector<Actor*> bullets;
+	for (Actor* const actor : actors)
+	{
+		if (actor->IsTypeOf<PlayerBullet>() && actor->IsActive())
+		{
+			bullets.emplace_back(actor);
+		}
+	}
+
+	if (bullets.empty())
+	{
+		return;
+	}
+
+	// 쿼드 트리를 이용한 충돌 검사
 	for (Actor* const bullet : bullets)
 	{
-		for (Enemy* const enemy : enemies)
-		{
-			// AABB 겹침 판정.
-			if (bullet->TestIntersect(enemy))
-			{
-				enemy->OnDamaged();
-				bullet->Destroy();
+		// 같은 구역에 있는 액터들만 쿼드 트리에게 요청
+		std::vector<Actor*> nearActors = quadTree->Query(bullet);
 
-				// 점수 추가.
-				score += 1;
-				if (!isPlayerDead)
+		for (Actor* const nearActors : nearActors)
+		{
+			// 적과 충돌 검사
+			if (nearActors->IsTypeOf <Enemy>())
+			{
+				//??
+				Enemy* enemy = nearActors->As<Enemy>();
+
+				if (bullet->TestIntersect(enemy))
 				{
-					//점수가 올랐으니 무기 상태 체크
-					Player::Get().UpdateWeaponByScore(score);
+					enemy->OnDamaged();
+					bullet->Destroy();
+
+					// 점수 추가 및 무기 업데이트
+					score += 1;
+					if (!isPlayerDead)
+					{
+						Player::Get().UpdateWeaponByScore(score);
+					}
+
+					break; // 이 총알은 파괴되었으므로, 다음 총알 검사로 넘어감
 				}
-					continue;
 			}
 		}
 	}
@@ -240,113 +285,89 @@ void GameLevel::ProcessCollisionPlayerBulletAndEnemy()
 
 void GameLevel::ProcessCollisionPlayerAndEnemyBullet()
 {
-	// 액터 필터링을 위한 변수.
+	if (!quadTree) return;
+
+	// 1. 플레이어 찾기
 	Player* player = nullptr;
-	std::vector<Actor*> bullets;
-	
-	// 액터 필터링.
 	for (Actor* const actor : actors)
 	{
-		if (!player && actor->IsTypeOf<Player>())
+		if (actor->IsTypeOf<Player>() && actor->IsActive())
 		{
 			player = actor->As<Player>();
-			continue;
-		}
-
-		if (actor->IsTypeOf<EnemyBullet>())
-		{
-			bullets.emplace_back(actor);
-		}
-	}
-
-	// 판정 처리 안해도 되는지 확인.
-	if (bullets.size() == 0 || !player)
-	{
-		return;
-	}
-
-	// 충돌 판정.
-	for (Actor* const bullet : bullets)
-	{
-		if (bullet->TestIntersect(player))
-		{
-			score -= 5;
-			bullet->Destroy();
-
-			if (score < 0)
-			{
-				score = 0;
-
-				// 플레이어 죽음 설정.
-				isPlayerDead = true;
-
-				// 죽은 위치 저장.
-				playerDeadPosition = player->GetPosition();
-
-				// 액터 제거 처리.
-				player->OnDamaged();
-				bullet->Destroy();
-			}
-			else
-			{
-				//점수가 깎였으니 무기 상태 체크
-				player->UpdateWeaponByScore(score);
-			}
-		
-			//한 프레임에 한 번만 피격 처리 
 			break;
+		}
+	}
+
+	if (!player) return;
+
+	// 2. 쿼드 트리로 플레이어 주변의 액터만 검색
+	std::vector<Actor*> nearActors = quadTree->Query(player);
+
+	for (Actor* const nearActor : nearActors)
+	{
+		if (nearActor->IsTypeOf<EnemyBullet>())
+		{
+			// 정밀 충돌 판정
+			if (nearActor->TestIntersect(player))
+			{
+				score -= 5;
+				nearActor->Destroy();
+
+				if (score < 0)
+				{
+					score = 0;
+					isPlayerDead = true;
+					playerDeadPosition = player->GetPosition();
+					player->OnDamaged();
+				}
+				else
+				{
+					player->UpdateWeaponByScore(score);
+				}
+				break; // 한 프레임에 한 번만 피격
+			}
 		}
 	}
 }
 
 void GameLevel::ProcessCollisionPlayerBulletAndObstacle()
 {
+	if (!quadTree) return;
 
-	// 플레이어 탄약과 장애물 액터 필터링.
 	std::vector<Actor*> bullets;
-	std::vector<Obstacle*> obstacles;
-
-	// 액터 필터링.
-	for(Actor* const actor : actors)
+	for (Actor* const actor : actors)
 	{
-		if (actor->IsTypeOf<PlayerBullet>())
+		if (actor->IsTypeOf<PlayerBullet>() && actor->IsActive())
 		{
 			bullets.emplace_back(actor);
-			continue;
-		}
-
-		if (actor->IsTypeOf<Obstacle>())
-		{
-			obstacles.emplace_back(actor->As<Obstacle>());
 		}
 	}
 
-	// 판정 안해도 되는지 확인.
-	if(bullets.size() == 0 || obstacles.size() == 0)
-	{
-		return;
-	}
+	if (bullets.empty()) return;
 
-	// 충돌 판정.
-	for(Actor* const bullet : bullets)
+	for (Actor* const bullet : bullets)
 	{
-		for(Obstacle* const obstacle : obstacles)
+		// 총알 주변 액터 검색
+		std::vector<Actor*> nearActors = quadTree->Query(bullet);
+
+		for (Actor* const nearActor : nearActors)
 		{
-			// AABB 겹침 판정.
-			if(bullet->TestIntersect(obstacle))
+			if (nearActor->IsTypeOf<Obstacle>())
 			{
-				//장애물 데미지 함수 호출
-				obstacle->TakeDamaged();
-				bullet->Destroy();
+				Obstacle* obstacle = nearActor->As<Obstacle>();
 
-				// 점수 추가.
-				score += 1;
-
-				if(!isPlayerDead)
+				if (bullet->TestIntersect(obstacle))
 				{
-					Player::Get().UpdateWeaponByScore(score);
+					obstacle->TakeDamaged();
+					bullet->Destroy();
+
+					score += 1;
+					if (!isPlayerDead)
+					{
+						Player::Get().UpdateWeaponByScore(score);
+					}
+					break; // 총알 파괴, 다음 총알로
 				}
-				continue;
 			}
 		}
 	}
@@ -354,63 +375,45 @@ void GameLevel::ProcessCollisionPlayerBulletAndObstacle()
 
 void GameLevel::ProcessCollisionPlayerAndObstacle()
 {
-	// 액터 필터링을 위한 변수.
-	Player* player = nullptr;
-	std::vector<Actor*> obstacles;
+	if (!quadTree) return;
 
-	// 액터 필터링.
+	Player* player = nullptr;
 	for (Actor* const actor : actors)
 	{
-		if (!player && actor->IsTypeOf<Player>())
+		if (actor->IsTypeOf<Player>() && actor->IsActive())
 		{
 			player = actor->As<Player>();
-			continue;
-		}
-
-		if (actor->IsTypeOf<Obstacle>())
-		{
-			obstacles.emplace_back(actor);
-		}
-	}
-
-	// 판정 처리 안해도 되는지 확인.
-	if (obstacles.size() == 0 || !player)
-	{
-		return;
-	}
-
-	// 충돌 판정.
-	for (Actor* const obstacle : obstacles)
-	{
-		if (obstacle->TestIntersect(player))
-		{
-			// 장애물과 부딪히면 점수 감소
-			score -= 5;
-
-			// 장애물 파괴
-			obstacle->Destroy();
-
-			if (score < 0)
-			{
-				score = 0;
-
-				// 플레이어 죽음 설정.
-				isPlayerDead = true;
-
-				// 죽은 위치 저장.
-				playerDeadPosition = player->GetPosition();
-
-				// 플레이어 제거는 Tick에서 처리하므로 주석 유지
-				player->OnDamaged();
-			}
-			else
-			{
-				// 점수가 깎였으니 무기 상태 체크
-				player->UpdateWeaponByScore(score);
-			}
-
-			// 한 프레임에 한 번만 충돌 처리
 			break;
+		}
+	}
+
+	if (!player) return;
+
+	// 플레이어 주변 액터 검색
+	std::vector<Actor*> nearActors = quadTree->Query(player);
+
+	for (Actor* const nearActor : nearActors)
+	{
+		if (nearActor->IsTypeOf<Obstacle>())
+		{
+			if (nearActor->TestIntersect(player))
+			{
+				score -= 5;
+				nearActor->Destroy(); // 장애물 파괴
+
+				if (score < 0)
+				{
+					score = 0;
+					isPlayerDead = true;
+					playerDeadPosition = player->GetPosition();
+					player->OnDamaged();
+				}
+				else
+				{
+					player->UpdateWeaponByScore(score);
+				}
+				break;
+			}
 		}
 	}
 }
@@ -418,46 +421,33 @@ void GameLevel::ProcessCollisionPlayerAndObstacle()
 void GameLevel::ProcessCollisionPlayerAndItem()
 {
 
-	//Player* player = nullptr;
-	// 플레이어 탄약과 장애물 액터 필터링.
-	std::vector<Actor*> players;
-	std::vector<Item*> items;
+	if (!quadTree) return;
 
-	// 액터 필터링.
+	Player* player = nullptr;
 	for (Actor* const actor : actors)
 	{
-		if (actor->IsTypeOf<Player>())
+		if (actor->IsTypeOf<Player>() && actor->IsActive())
 		{
-			players.emplace_back(actor);
-			continue;
-		}
-
-		if (actor->IsTypeOf<Item>())
-		{
-			items.emplace_back(actor->As<Item>());
+			player = actor->As<Player>();
+			break;
 		}
 	}
 
-	// 판정 안해도 되는지 확인.
-	if (players.size() == 0 || items.size() == 0)
-	{
-		return;
-	}
+	if (!player) return;
 
-	// 충돌 판정.
-	for (Actor* const player : players)
+	// 플레이어 주변 액터 검색
+	std::vector<Actor*> nearActors = quadTree->Query(player);
+
+	for (Actor* const nearActor : nearActors)
 	{
-		for (Item* const item : items)
+		if (nearActor->IsTypeOf<Item>())
 		{
-			// AABB 겹침 판정.
+			Item* item = nearActor->As<Item>();
 			if (player->TestIntersect(item))
 			{
-				//아이템  충돌 함수 호출
-				item->TakeDamaged();
-				
-				// 점수 추가.
+				item->TakeDamaged(); // 아이템 획득 처리
 				coin += 5;
-				continue;
+				// 플레이어가 여러 아이템을 동시에 먹을 수도 있으므로 break 생략
 			}
 		}
 	}
@@ -465,47 +455,35 @@ void GameLevel::ProcessCollisionPlayerAndItem()
 
 void GameLevel::ProcessCollisionPlayerBulletAndEnemyBullet()
 {
-	// 플레이어 탄약과 적 탄약 액터 필터링.
-	std::vector<Actor*> pBullets;
-	std::vector<Actor*> eBullets;
+	if (!quadTree) return;
 
-	// 현재 레벨의 모든 액터를 순회하며 필터링.
+	std::vector<Actor*> pBullets;
 	for (Actor* const actor : actors)
 	{
-		if (!actor->IsActive())
+		if (actor->IsTypeOf<PlayerBullet>() && actor->IsActive())
 		{
-			continue;
-		}
-		if (actor->IsTypeOf<PlayerBullet>())
-		{
-			// 플레이어 총알 저장
 			pBullets.emplace_back(actor);
 		}
-		else if (actor->IsTypeOf<EnemyBullet>())
-		{
-			// 적 총알 저장
-			eBullets.emplace_back(actor);
-		}
 	}
 
-	// 한쪽이라도 없으면 종료
-	if (pBullets.empty() || eBullets.empty())
-	{
-		return;
-	}
+	if (pBullets.empty()) return;
 
-	// AABB 충돌 판정
 	for (Actor* const pb : pBullets)
 	{
-		for (Actor* const eb : eBullets)
-		{
-			// 플레이어 총알과 적 총알이 겹치는지 확인
-			if (pb->TestIntersect(eb))
-			{
-				pb->Destroy();
-				eb->Destroy();
+		// 내 총알 주변 액터 검색
+		std::vector<Actor*> nearActors = quadTree->Query(pb);
 
-				break;
+		for (Actor* const nearActor : nearActors)
+		{
+			if (nearActor->IsTypeOf<EnemyBullet>())
+			{
+				if (pb->TestIntersect(nearActor))
+				{
+					// 둘 다 파괴 (상쇄)
+					pb->Destroy();
+					nearActor->Destroy();
+					break;
+				}
 			}
 		}
 	}

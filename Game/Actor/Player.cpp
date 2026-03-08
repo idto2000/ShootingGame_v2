@@ -17,7 +17,7 @@ Player* Player::instance = nullptr;
 
 
 Player::Player()
-	: super("<=A=>", Vector2::Zero, Color::Green), orignalAcceleration(0.0f),
+	: super("<=A=>", Vector2::Zero, Color::Yellow), orignalAcceleration(0.0f),
 	orignalMaxSpeed(0.0f)
 {
 	instance = this;

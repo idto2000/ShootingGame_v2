@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 #include "Level/Level.h"
 
 using namespace Wanted;
@@ -30,16 +30,16 @@ private:
     int currentSelection = 0;
     bool isShowCredit = false;
 
-    // [¼³Á¤] ÃÖ´ë ÁÙ ¼ö¿Í °¡·Î ±æÀÌ
+    // [ì„¤ì •] ìµœëŒ€ ì¤„ ìˆ˜ì™€ ê°€ë¡œ ê¸¸ì´
     static const int MAX_TITLE_LINES = 40;
     static const int MAX_LINE_WIDTH = 256;
 
-    // Å¸ÀÌÆ² ±×¸²À» ÀúÀåÇÒ 2Â÷¿ø ¹è¿­
+    // íƒ€ì´í‹€ ê·¸ë¦¼ì„ ì €ì¥í•  2ì°¨ì› ë°°ì—´
     char titleImage[MAX_TITLE_LINES][MAX_LINE_WIDTH] = {};
 
-    // ½ÇÁ¦·Î ÀĞÀº ÁÙ ¼ö
+    // ì‹¤ì œë¡œ ì½ì€ ì¤„ ìˆ˜
     int titleLineCount = 0;
 
-    // ¸Ş´º ÅØ½ºÆ®
+    // ë©”ë‰´ í…ìŠ¤íŠ¸
     const char* menuText[3] = { "GAME START", "CREDIT", "EXIT" };
 };

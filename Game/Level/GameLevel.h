@@ -2,6 +2,7 @@
 
 #include "Level/Level.h"
 #include "Math/Vector2.h"
+#include "Partition/QuadTree.h"
 
 using namespace Wanted;
 
@@ -54,8 +55,7 @@ private:
 	//딜레이 시간 함수();
 	float restartDelayTime = 0.0f;
 
-private:
-	
+private:	
 
 	// 플레이어가 죽었는지 확인.
 	bool isPlayerDead = false;
@@ -68,4 +68,10 @@ private:
 
 	// 전역적으로 접근하도록 만들기 위한 전역 변수.
 	static GameLevel* instance;
+
+	// QuadTree 포인터 선언
+	class QuadTree* quadTree = nullptr;
+
+	// QuadTree 시각화 변수 선언
+	bool isShowQuadTree = false;
 };

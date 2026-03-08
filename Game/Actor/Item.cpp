@@ -1,4 +1,4 @@
-#include "Item.h"
+ï»¿#include "Item.h"
 #include "Engine/Engine.h"
 #include "Level/Level.h"
 #include "Util/Util.h"
@@ -14,10 +14,10 @@ Item::Item(const char* image, int x, int y, float speed, Color color)
 	this->xReal = static_cast<float>(x);
 	this->yReal = static_cast<float>(y);
 	
-	//·£´õ¸µ ÁÂÇ¥ ¼³Á¤
+	//ëžœë”ë§ ì¢Œí‘œ ì„¤ì •
 	SetPosition(Vector2(x, y));
 
-	//Ä®¶ó Àû¿ë
+	//ì¹¼ë¼ ì ìš©
 	this->color = color;
 }
 
@@ -27,21 +27,21 @@ Item::~Item()
 
 void Item::Tick(float deltaTime)
 {
-	// ¾Æ·¡·Î ÀÌµ¿
+	// ì•„ëž˜ë¡œ ì´ë™
 	yReal += moveSpeed * deltaTime;
 
-	// È­¸é ÇÏ´Ü ÀÌÅ» °Ë»ç
+	// í™”ë©´ í•˜ë‹¨ ì´íƒˆ ê²€ì‚¬
 	if (yReal >= Engine::Get().GetHeight())
 	{
 		Destroy();
 	}
 
-	// ÁÂÇ¥ µ¿±âÈ­ (float -> int)
+	// ì¢Œí‘œ ë™ê¸°í™” (float -> int)
 	SetPosition(Vector2(static_cast<int>(xReal), static_cast<int>(yReal)));
 }
 
 void Item::TakeDamaged()
 {
-	// ¾×ÅÍ Á¦°Å.
+	// ì•¡í„° ì œê±°.
 	Destroy();
 }

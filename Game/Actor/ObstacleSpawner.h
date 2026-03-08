@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 
 #include "Actor/Actor.h"
 #include "Util/Timer.h"
@@ -21,6 +21,6 @@ namespace Wanted
 
     private:
         Timer timer;
-        float spawnTime = 2.5f; // 2.5ÃÊ¸¶´Ù ÇÏ³ª¾¿ »ı¼º
+        float spawnTime = 2.5f; // 2.5ì´ˆë§ˆë‹¤ í•˜ë‚˜ì”© ìƒì„±
     };
 }
