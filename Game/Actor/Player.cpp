@@ -38,6 +38,9 @@ Player::Player()
 
 	// 객체가 초기화되면 자기 자신의 주소를 저장.
 	instance = this;
+
+	// 플레이어의 출력 우선순위
+	sortingOrder = 150;
 }
 
 Player::~Player()

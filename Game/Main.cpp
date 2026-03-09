@@ -1,4 +1,6 @@
-#include <iostream>
+﻿#include <iostream>
+#include <crtdbg.h>
+
 #include "Engine/Engine.h"
 #include "Level/GameLevel.h"
 #include "Level/TitleLevel.h"
@@ -11,6 +13,7 @@ using namespace Wanted;
 
 int main()
 {
+	//_CrtSetBreakAlloc(534769);
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 
 	Engine engine;

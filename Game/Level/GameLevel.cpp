@@ -20,6 +20,7 @@
 #include "Partition/QuadTree.h"
 #include "Partition/QuadNode.h"
 
+
 #include <iostream>
 
 //정적 변수 초기화
@@ -28,7 +29,6 @@ using namespace Wanted;
 
 GameLevel::GameLevel()
 {
-
 	instance = this;
 	restartDelayTime = 0.0f;
 
@@ -81,12 +81,32 @@ GameLevel::GameLevel()
 
 GameLevel::~GameLevel()
 {
-	isPlayerDead = false;
-	// [추가 3] 내가 사라질 때 instance도 비워줌
-	if (instance == this)
+	// 1. 마지막으로 남아있던 쿼드트리 메모리 해제
+	if (quadTree != nullptr)
 	{
-		instance = nullptr;
+		delete quadTree;
+		quadTree = nullptr;
 	}
+
+	// 2. 레벨에 등록된 모든 액터(Actor) 객체들 메모리 해제
+	// (Level 클래스에서 actors를 관리한다면 여기서 전수 조사하여 삭제)
+	//for (Actor* actor : actors)
+	//{
+	//	if (actor)
+	//	{
+	//		delete actor;
+	//	}
+	//}
+	//actors.clear();
+
+	// 3. 기존 인스턴스 정리
+	//isPlayerDead = false;
+	//if (instance == this)
+	//{
+	//	instance = nullptr;
+	//}
+
+	instance = nullptr;
 }
 
 GameLevel& GameLevel::Get()
@@ -126,14 +146,27 @@ void GameLevel::Tick(float deltaTime)
 		return;
 	}
 
-	// 키 입력을 하면 시각화 모드 On/ Off
+	// 키 입력을 하면 쿼드 티리 시각화 모드 On/ Off
 	if (Input::Get().GetKeyDown('G'))
 	{
 		isShowQuadTree = !isShowQuadTree;
+
+		// 쿼드 트리 시각화가 종료 되면 같이 종료
+		if (!isShowQuadTree)
+		{
+			QuadNode::isShowActorNames = false;
+		}
 	}
 
-	// 이전에 그리고 남은 트기가 있을 경우 지움
-	if (quadTree)
+	// 키 입력을 하면 오브젝트 명 출력 시각화 모드 On/ Off
+	if (isShowQuadTree && Input::Get().GetKeyDown('H'))
+	{	
+			QuadNode::isShowActorNames = !QuadNode::isShowActorNames;
+	}
+	
+
+	// 새로운 트리를 만들기 전에 남은 트리를 삭제
+	if (quadTree != nullptr)
 	{
 		delete quadTree;
 		quadTree = nullptr;
@@ -150,7 +183,13 @@ void GameLevel::Tick(float deltaTime)
 		if (actor->IsActive())
 		{
 			// Background 타입이 아닌 경우에만 트리 삽입
-			if (!actor->IsTypeOf<Background>())
+			if (!actor->IsTypeOf<Background>() &&
+				!actor->IsTypeOf<Player>() &&
+				!actor->IsTypeOf<PlayerBullet>() &&
+				!actor->IsTypeOf<MouseTester>() &&
+				!actor->IsTypeOf<EnemySpawner>() &&
+				!actor->IsTypeOf<ItemSpawner>() &&
+				!actor->IsTypeOf<ObstacleSpawner>())
 			{
 				quadTree->Insert(actor);
 			}
@@ -170,13 +209,20 @@ void GameLevel::Draw()
 {
 	super::Draw();
 
-	// 시각화가 On이라면 트리 경계선 '+'을 그린다.
+	// 시각화가 On일 경우 쿼드 트리 그리드를 그린다.
 	if (isShowQuadTree && quadTree)
 	{
 		quadTree->DebugDraw();
-		Renderer::Get().Submit("QUADTREE DEBUG : ON", Vector2(1, 2), Color::Green);
+		Renderer::Get().Submit("QUADTREE DEBUG : ON", Vector2(01, 2), Color::Green, 200);
+
+		if (isShowQuadTree && quadTree)
+		{
+			quadTree->DebugDraw();
+			Renderer::Get().Submit("ACTOR INFO : SHOW", Vector2(1, 3), Color::Green, 200);
+		}
 	}
 
+	
 	if (isPlayerDead)
 	{
 
@@ -493,7 +539,7 @@ void GameLevel::ProcessCollisionPlayerBulletAndEnemyBullet()
 void GameLevel::ShowScore()
 {
 	sprintf_s(scoreString, 128, "Score: %d             Coin: %d", score, coin);
-	Renderer::Get().Submit(scoreString,	Vector2(1, Engine::Get().GetHeight() - 1));
+	Renderer::Get().Submit(scoreString,	Vector2(1, Engine::Get().GetHeight() - 1), Color::White, 200);
 
 	// --- 디버깅용 속도 업 상태 표시 추가 ---
 	if (!isPlayerDead && Player::Get().IsSpeedBuffActive())

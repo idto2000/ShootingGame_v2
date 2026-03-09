@@ -1,18 +1,31 @@
-#include "QuadNode.h"
+﻿#include "QuadNode.h"
 #include "Actor/Actor.h"
 #include "Render/Renderer.h"
 #include "Math/Vector2.h"
 #include "Engine/Engine.h"
 
+const int MAX_NODE_CAPACITY = 1;
+
+
 namespace Wanted
 {
+	// 정적 변수 초기화
+	bool QuadNode::isShowActorNames = false;
+
 	QuadNode::QuadNode(const Bounds& bounds, int depth)
 		: bounds(bounds), depth(depth)
 	{
 	}
 	QuadNode::~QuadNode()
 	{
-		Clear();
+		// [수정] 소멸자에서 자식 노드들을 물리적으로 delete 합니다.
+		// delete는 해당 객체의 소멸자를 다시 호출하므로 트리 전체가 재귀적으로 삭제됩니다.
+		if (topLeft) { delete topLeft; topLeft = nullptr; }
+		if (topRight) { delete topRight; topRight = nullptr; }
+		if (bottomLeft) { delete bottomLeft; bottomLeft = nullptr; }
+		if (bottomRight) { delete bottomRight; bottomRight = nullptr; }
+
+		actors.clear();
 	}
 
 	// 액터를 쿼드트리에 추가하는 함수
@@ -24,23 +37,20 @@ namespace Wanted
 		}
 
 		// 액터가 위치한 영역 계산
-		Bounds actorBounds((int)actor->GetPosition().x, (int)actor->GetPosition().y,
+		Bounds actorBounds(actor->GetPosition().x,
+			actor->GetPosition().y,
 			actor->GetWidth(), 1);
 
-		// 4분면 중 어디에 들어가는지 확인
-		NodeIndex result = TestRegion(actorBounds);
-
-		// 두 개 이상 영역에 겹치는 경우에는 현재 노드에 추가.
-		if (result == NodeIndex::Straddling)
+		//1. 분할된 상태라면 자식에게 삽입 시도
+		if (IsDivide())
 		{
-			actors.emplace_back(actor);
-		}
+			NodeIndex result = TestRegion(actorBounds);
 
-		// 포함될 경우 자식 노드로 보냄
-		else if (result != NodeIndex::QutOfArea)
-		{
-			// 아직 자식 노드가 없다면 분할
-			if (Subdivide())
+			if (result == NodeIndex::Straddling)
+			{
+				actors.emplace_back(actor);
+			}
+			else if (result != NodeIndex::QutOfArea)
 			{
 				if (result == NodeIndex::TopLeft)
 				{
@@ -58,12 +68,97 @@ namespace Wanted
 				{
 					bottomRight->Insert(actor);
 				}
-			}
-			else
-			{
-				actors.emplace_back(actor);
+
+				return;
 			}
 		}
+
+		//2. 아직 분할되지 않음 상태라면 일단 현재 노드가 보관
+		actors.emplace_back(actor);
+
+		//3. 2개 이상 있있을때 분할
+		if (actors.size() > 2 && depth < 5)
+		{
+			if (Subdivide())
+			{
+				// 가지고 있는 액터 자식에게 재배치
+				auto it = actors.begin();
+				while (it != actors.end())
+				{
+					Actor* existingActor = *it;
+					Bounds b((int)existingActor->GetPosition().x,
+						(int)existingActor->GetPosition().y,
+						(int)existingActor->GetWidth(), 1);
+					NodeIndex res = TestRegion(b);
+
+					// 자식 노드 한 곳에 완전히 쏙 들어가는 놈만 밑으로 보냄
+					if (res != NodeIndex::Straddling && res != NodeIndex::QutOfArea)
+					{
+						if (res == NodeIndex::TopLeft)
+						{
+							topLeft->Insert(existingActor);
+						}
+						else if (res == NodeIndex::TopRight)
+						{
+							topRight->Insert(existingActor);
+						}
+						else if (res == NodeIndex::BottomLeft)
+						{
+							bottomLeft->Insert(existingActor);
+						}
+						else if (res == NodeIndex::BottomRight)
+						{
+							bottomRight->Insert(existingActor);
+						}
+
+						// 현재 노드 리스트에서 제거
+						it = actors.erase(it);
+					}
+					else
+					{
+						++it;
+					}
+				}
+			}
+		}
+
+		//// 4분면 중 어디에 들어가는지 확인
+		//NodeIndex result = TestRegion(actorBounds);
+
+		//// 두 개 이상 영역에 겹치는 경우에는 현재 노드에 추가.
+		//if (result == NodeIndex::Straddling)
+		//{
+		//	actors.emplace_back(actor);
+		//}
+
+		//// 포함될 경우 자식 노드로 보냄
+		//else if (result != NodeIndex::QutOfArea)
+		//{
+		//	// 아직 자식 노드가 없다면 분할
+		//	if (Subdivide())
+		//	{
+		//		if (result == NodeIndex::TopLeft)
+		//		{
+		//			topLeft->Insert(actor);
+		//		}
+		//		else if (result == NodeIndex::TopRight)
+		//		{
+		//			topRight->Insert(actor);
+		//		}
+		//		else if (result == NodeIndex::BottomLeft)
+		//		{
+		//			bottomLeft->Insert(actor);
+		//		}
+		//		else if (result == NodeIndex::BottomRight)
+		//		{
+		//			bottomRight->Insert(actor);
+		//		}
+		//	}
+		//	else
+		//	{
+		//		actors.emplace_back(actor);
+		//	}
+		//}
 	}
 
 	// 특정 영역과 겹치는 모든 액터르 찾는다.
@@ -104,18 +199,18 @@ namespace Wanted
 	{
 		actors.clear();
 
-		if (IsDivide())
+		/*if (IsDivide())
 		{
 			topLeft->Clear();
 			topRight->Clear();
 			bottomLeft->Clear();
 			bottomRight->Clear();
-
-			ClearChildren();
-		}
+		}*/
 	}
+
 	int QuadNode::GetTotalActorCount() const
 	{
+		// 현재 노드가 가진 액터 수
 		int count = (int)actors.size();
 
 		// 자식이 있다면
@@ -127,7 +222,6 @@ namespace Wanted
 			count += bottomRight->GetTotalActorCount();
 		}
 		return count;
-
 	}
 
 	int QuadNode::GetTotalNodeCount() const
@@ -137,83 +231,104 @@ namespace Wanted
 		// 자기 자신
 		if (IsDivide())
 		{
-			count += topLeft->GetTotalActorCount();
-			count += topRight->GetTotalActorCount();
-			count += bottomLeft->GetTotalActorCount();
-			count += bottomRight->GetTotalActorCount();
+			count += topLeft->GetTotalNodeCount();
+			count += topRight->GetTotalNodeCount();
+			count += bottomLeft->GetTotalNodeCount();
+			count += bottomRight->GetTotalNodeCount();
 		}
 		return count;
 	}
 
 	void QuadNode::DebugDraw() const
 	{
+		if (depth >1 && GetTotalActorCount() == 0)
+		{
+			return;
+		}
+
 		// 1. 공통 좌표 계산
 		int x = static_cast<int>(bounds.X());
 		int y = static_cast<int>(bounds.Y());
 		int w = static_cast<int>(bounds.Width());
 		int h = static_cast<int>(bounds.Height());
+
+		// 쿼드트리 시각화 그리드 표시
 		int sw = Engine::Get().GetWidth();
 		int sh = Engine::Get().GetHeight();
 
-		// ---------------------------------------------------------
-		// [배경] 모든 노드의 모서리에 점(.)을 찍어 트리 구조를 표시
-		// ---------------------------------------------------------
-		// sortingOrder를 90으로 설정하여 배경보다는 위에, 격자보다는 아래에 위치
-		Renderer::Get().Submit(".", Vector2((float)x, (float)y), Color::DarkGray, 90);
+		// 현재 존재하는 모든 노드의 영역 표시
+		bool isActive = !actors.empty();
+		Color drawColor = isActive ? Color::Green: Color::DarkGray;
+		int drawOrder = isActive ? 100 : 80;
 
-		// ---------------------------------------------------------
-		// [자식 노드 호출]
-		// ---------------------------------------------------------
+		// 5.[선 그리기 - Overlap 방식]
+		// 경계선(x+w, y+h)까지 루프를 돌려 인접한 칸과 선을 겹치게 그립니다. (한 줄 효과)
+		// 가로선 (-)
+		for (int i = 0; i <= w; ++i) 
+		{
+			int curX = x + i;
+			if (curX < 0 || curX >= sw)
+			{
+				continue;
+			}
+			if (y >= 0 && y < sh)
+			{
+				Renderer::Get().Submit("-", Vector2(curX, y), drawColor, drawOrder);
+			}
+				
+			if (y + h >= 0 && y + h < sh && y + h < Engine::Get().GetHeight())
+			{
+				Renderer::Get().Submit("-", Vector2(curX, (y + h)), drawColor, drawOrder);
+			}		
+		}
+
+		// 세로선 (|)
+		for (int j = 0; j <= h; ++j)
+		{
+			int curY = y + j;
+			if (curY < 0 || curY >= sh)
+			{
+				continue;
+			}
+			if (x >= 0 && x < sw)
+			{
+				Renderer::Get().Submit("|", Vector2(x, curY), drawColor, drawOrder);
+			}
+			if (x + w >= 0 && x + w < sw && x + w < Engine::Get().GetWidth())
+			{
+				Renderer::Get().Submit("|", Vector2((x + w), curY), drawColor, drawOrder);
+			}
+		}
+
+		// 6. [충돌 격자 강조] 액터가 있는 경우에만 모서리에 흰색 '+' 표시
+		if (isActive)
+		{
+			Renderer::Get().Submit("+", Vector2(x, y), Color::White, 81);
+			Renderer::Get().Submit("+", Vector2((x + w), y), Color::White, 81);
+			Renderer::Get().Submit("+", Vector2(x, (y + h)), Color::White, 81);
+			Renderer::Get().Submit("+", Vector2((x + w), (y + h)), Color::White, 81);
+		}
+
+		// 정적 변수가 true일 때만 액터 이름을 출력
+		if (isShowActorNames && !actors.empty())
+		{
+			
+			for (int k = 0; k < (int)actors.size(); ++k)
+			{
+				Renderer::Get().Submit(actors[k]->GetImage(),
+							Vector2(x + 1, y + 1 + k), Color::Yellow, 110);
+			}
+		}
+
+		// 모든 레벨의 그리드가 겹쳐 보이게
 		if (IsDivide())
 		{
 			if (topLeft) topLeft->DebugDraw();
 			if (topRight) topRight->DebugDraw();
 			if (bottomLeft) bottomLeft->DebugDraw();
 			if (bottomRight) bottomRight->DebugDraw();
-
-			// 자식이 있는 부모 노드는 여기서 종료 (실선은 말단 노드만 그림)
-			return;
-		}
-
-		// ---------------------------------------------------------
-		// [강조] 액터가 들어있는 '말단 방'만 실선 격자로 표시
-		// ---------------------------------------------------------
-		if (!actors.empty())
-		{
-			// 가로선 (-) - sortingOrder 100
-			for (int i = 0; i < w; ++i)
-			{
-				int curX = x + i;
-				if (curX >= 0 && curX < sw)
-				{
-					if (y >= 0 && y < sh)
-						Renderer::Get().Submit("-", Vector2((float)curX, (float)y), Color::Green, 100);
-					if (y + h - 1 >= 0 && y + h - 1 < sh)
-						Renderer::Get().Submit("-", Vector2((float)curX, (float)(y + h - 1)), Color::Green, 100);
-				}
-			}
-
-			// 세로선 (|) - sortingOrder 100
-			for (int j = 0; j < h; ++j)
-			{
-				int curY = y + j;
-				if (curY >= 0 && curY < sh)
-				{
-					if (x >= 0 && x < sw)
-						Renderer::Get().Submit("|", Vector2((float)x, (float)curY), Color::Green, 100);
-					if (x + w - 1 >= 0 && x + w - 1 < sw)
-						Renderer::Get().Submit("|", Vector2((float)(x + w - 1), (float)curY), Color::Green, 100);
-				}
-			}
-
-			// 네 모서리 (+) - sortingOrder 101 (가장 위)
-			Renderer::Get().Submit("+", Vector2((float)x, (float)y), Color::White, 101);
-			Renderer::Get().Submit("+", Vector2((float)(x + w - 1), (float)y), Color::White, 101);
-			Renderer::Get().Submit("+", Vector2((float)x, (float)(y + h - 1)), Color::White, 101);
-			Renderer::Get().Submit("+", Vector2((float)(x + w - 1), (float)(y + h - 1)), Color::White, 101);
 		}
 	}
-
 
 	bool QuadNode::Subdivide()
 	{
@@ -307,13 +422,13 @@ namespace Wanted
 	// 메모리 해제
 	void QuadNode::ClearChildren()
 	{
-		if (IsDivide())
+		/*if (IsDivide())
 		{
 			SafeDelete(topLeft);
 			SafeDelete(topRight);
 			SafeDelete(bottomLeft);
 			SafeDelete(bottomRight);
-		}
+		}*/
 	}
 
 

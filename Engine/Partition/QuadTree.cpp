@@ -8,6 +8,9 @@ namespace Wanted
 	{
 		// 루트 노드 생성
 		root = new QuadNode(bounds);
+
+		// 쿼드 트리 강제 생성
+		root->InitialSubdivde();
 	}
 
 	Wanted::QuadTree::~QuadTree()
@@ -77,6 +80,7 @@ namespace Wanted
 		}
 		return 0;
 	}
+
 	int QuadTree::GetTotoalNodeCount()
 	{
 		if (root)
@@ -85,6 +89,7 @@ namespace Wanted
 		}
 		return 0;
 	}
+
 	void QuadTree::DebugDraw() const
 	{
 		if (root)

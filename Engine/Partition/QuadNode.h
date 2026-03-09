@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "Bounds.h"
 #include "Common/Common.h"
@@ -69,6 +69,11 @@ namespace Wanted
 
 		//[시각화 작업] 콘솔 화면에 현재 노드의 영역을 시각화
 		void DebugDraw() const;
+
+		void InitialSubdivde() { Subdivide(); }
+
+		//[시각화 작업] 액터 이름(이미지) 표시 여부 결정
+		static bool isShowActorNames;
 
 	private:
 
