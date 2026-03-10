@@ -25,6 +25,12 @@ namespace Wanted
 		// 형변환 연산자 오버로딩.
 		operator COORD() const;
 
+		// 거리 계산
+		static float Distance(const Vector2& a, const Vector2& b);
+
+		// 기본 값
+		static Vector2 Zeor;
+
 		// 벡터 기본 값.
 		static Vector2 Zero;
 		static Vector2 One;

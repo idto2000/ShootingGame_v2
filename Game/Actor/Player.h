@@ -3,6 +3,7 @@
 #include "Actor/Actor.h"
 #include "Util/Timer.h"
 //#include "Actor/Shield.h"
+#include <vector>
 
 using namespace Wanted;
 
@@ -87,6 +88,12 @@ private:
 private:
 	float ApplyFricition(float currentVelocity, float friction, float deltaTime);
 	void ApplyBoundaries();
+
+	// 쿼드트리를 사용해 가장 가까운 우선순위가 높은 타겟을 찾는 함수
+	class Actor* FindClosestTarget();
+
+	// 7발 모드용 다중 타겟 탐색 함수
+	std::vector<class Actor*> FindMultipleTargets(int count);
   
 private:
 	

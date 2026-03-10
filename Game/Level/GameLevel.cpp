@@ -139,6 +139,12 @@ void GameLevel::Tick(float deltaTime)
 	{
 		restartDelayTime += deltaTime;
 
+		if (quadTree != nullptr)
+		{
+			delete quadTree;
+			quadTree = nullptr;
+		}
+
 		if (restartDelayTime >= 3.0f)
 		{
 			Engine::Get().SetNewLevel(new TitleLevel());
@@ -213,12 +219,12 @@ void GameLevel::Draw()
 	if (isShowQuadTree && quadTree)
 	{
 		quadTree->DebugDraw();
-		Renderer::Get().Submit("QUADTREE DEBUG : ON", Vector2(01, 2), Color::Green, 200);
+		Renderer::Get().Submit("QUADTREE DEBUG : ON", Vector2(1, 2), Color::Green, 200);
 
-		if (isShowQuadTree && quadTree)
+		if (QuadNode::isShowActorNames)
 		{
-			quadTree->DebugDraw();
-			Renderer::Get().Submit("ACTOR INFO : SHOW", Vector2(1, 3), Color::Green, 200);
+				//quadTree->DebugDraw();
+				Renderer::Get().Submit("ACTOR INFO : SHOW", Vector2(1, 3), Color::Green, 200);	
 		}
 	}
 

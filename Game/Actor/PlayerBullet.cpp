@@ -20,6 +20,8 @@ PlayerBullet::PlayerBullet(const Vector2& position,
 	this->xVelocity = std::cosf(radian) * moveSpeed;
 	this->yVelocity = std::sinf(radian) * moveSpeed;
 
+	sortingOrder = 130;
+
 }
 
 PlayerBullet::~PlayerBullet()

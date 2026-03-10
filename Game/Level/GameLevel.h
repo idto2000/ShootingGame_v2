@@ -26,8 +26,9 @@ public:
 	void PlayerShield();
 	void PlayerSpeedBuster();
 
-	//
-	//bool IsSpeedBuffActive() const{	return isSpeedBuffActive;}
+	// Getter
+	inline class QuadTree* GetQuadTree() const { return quadTree; }
+	inline const std::vector<class Actor*>& GetActors() const { return actors; }
 
 private:
 	bool isSpeedBuffActive = false;

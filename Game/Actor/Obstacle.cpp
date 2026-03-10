@@ -39,6 +39,8 @@ Obstacle::Obstacle(const char* image, int xPosition, float speed, int hp) : supe
 
 	//장애물 위치 설정
 	SetPosition(Vector2(randomX, 0));
+
+	sortingOrder = 130;
 }
 
 Obstacle::~Obstacle()

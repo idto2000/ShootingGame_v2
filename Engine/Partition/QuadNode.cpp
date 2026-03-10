@@ -77,7 +77,7 @@ namespace Wanted
 		actors.emplace_back(actor);
 
 		//3. 2개 이상 있있을때 분할
-		if (actors.size() > 2 && depth < 5)
+		if (actors.size() > 0 && depth < 5)
 		{
 			if (Subdivide())
 			{
@@ -241,7 +241,7 @@ namespace Wanted
 
 	void QuadNode::DebugDraw() const
 	{
-		if (depth >1 && GetTotalActorCount() == 0)
+		if (depth > 1 && GetTotalActorCount() == 0)
 		{
 			return;
 		}
@@ -256,15 +256,13 @@ namespace Wanted
 		int sw = Engine::Get().GetWidth();
 		int sh = Engine::Get().GetHeight();
 
-		// 현재 존재하는 모든 노드의 영역 표시
-		bool isActive = !actors.empty();
-		Color drawColor = isActive ? Color::Green: Color::DarkGray;
-		int drawOrder = isActive ? 100 : 80;
+		// 쿼드 트리 그리드 표시
+		Color treeColor = Color::DarkGray;
+		int treeOrder = 80;
 
-		// 5.[선 그리기 - Overlap 방식]
 		// 경계선(x+w, y+h)까지 루프를 돌려 인접한 칸과 선을 겹치게 그립니다. (한 줄 효과)
 		// 가로선 (-)
-		for (int i = 0; i <= w; ++i) 
+		for (int i = 0; i <= w; ++i)
 		{
 			int curX = x + i;
 			if (curX < 0 || curX >= sw)
@@ -273,13 +271,15 @@ namespace Wanted
 			}
 			if (y >= 0 && y < sh)
 			{
-				Renderer::Get().Submit("-", Vector2(curX, y), drawColor, drawOrder);
+				Renderer::Get().Submit("-", Vector2(curX, y),
+					treeColor, treeOrder);
 			}
-				
+
 			if (y + h >= 0 && y + h < sh && y + h < Engine::Get().GetHeight())
 			{
-				Renderer::Get().Submit("-", Vector2(curX, (y + h)), drawColor, drawOrder);
-			}		
+				Renderer::Get().Submit("-", Vector2(curX, (y + h)),
+					treeColor, treeOrder);
+			}
 		}
 
 		// 세로선 (|)
@@ -292,31 +292,84 @@ namespace Wanted
 			}
 			if (x >= 0 && x < sw)
 			{
-				Renderer::Get().Submit("|", Vector2(x, curY), drawColor, drawOrder);
+				Renderer::Get().Submit("|", Vector2(x, curY),
+					treeColor, treeOrder);
 			}
 			if (x + w >= 0 && x + w < sw && x + w < Engine::Get().GetWidth())
 			{
-				Renderer::Get().Submit("|", Vector2((x + w), curY), drawColor, drawOrder);
+				Renderer::Get().Submit("|", Vector2((x + w), curY),
+					treeColor, treeOrder);
 			}
 		}
 
-		// 6. [충돌 격자 강조] 액터가 있는 경우에만 모서리에 흰색 '+' 표시
-		if (isActive)
+		// 6. 충돌 액터 격자 표시
+		if (!actors.empty())
 		{
-			Renderer::Get().Submit("+", Vector2(x, y), Color::White, 81);
-			Renderer::Get().Submit("+", Vector2((x + w), y), Color::White, 81);
-			Renderer::Get().Submit("+", Vector2(x, (y + h)), Color::White, 81);
-			Renderer::Get().Submit("+", Vector2((x + w), (y + h)), Color::White, 81);
+			for (int k = 0; k < (int)actors.size(); ++k)
+			{
+				// 현재 유효한 액터 또는 살아있는 액터 체크
+				if (actors[k] != nullptr && actors[k]->IsActive())
+				{
+					// 충돌 액터의 실제 좌표를 가져옴
+					int ax = (int)actors[k]->GetPosition().x;
+					int ay = (int)actors[k]->GetPosition().y;
+					int aw = actors[k]->GetWidth();
+
+					int boxX = ax - 1;
+					int boxY = ay - 1;
+					int boxW = aw + 1;
+
+					// 액터 전용 초록색 충돌 박스 렌더링
+					for (int i = 0; i <= boxW; ++i)
+					{
+						Renderer::Get().Submit("-", Vector2(boxX + i, boxY), Color::Green, 90);     // 윗면
+						Renderer::Get().Submit("-", Vector2(boxX + i, boxY + 2), Color::Green, 90); // 아랫면
+					}
+					Renderer::Get().Submit("|", Vector2(boxX, boxY + 1), Color::Green, 90);         // 좌측면
+					Renderer::Get().Submit("|", Vector2(boxX + boxW, boxY + 1), Color::Green, 90);  // 우측면
+
+					// 충돌 박스 모서리 포인트 (흰색 +)
+					Renderer::Get().Submit("+", Vector2(boxX, boxY), Color::White, 91);
+					Renderer::Get().Submit("+", Vector2(boxX + boxW, boxY), Color::White, 91);
+					Renderer::Get().Submit("+", Vector2(boxX, boxY + 2), Color::White, 91);
+					Renderer::Get().Submit("+", Vector2(boxX + boxW, boxY + 2), Color::White, 91);
+
+					// 키 입력
+					if (isShowActorNames)
+					{
+						// GameLevel에서 키 입력받고 표시
+						Renderer::Get().Submit(actors[k]->GetImage(), Vector2(ax, boxY-1), Color::Yellow, 110);
+					}
+				}
+			}
+			
 		}
+
+		//if (!actors.empty())
+		//{
+		//	for (int k=0; k < (int)actors.size(); ++k)
+		//	{
+		//		// 액터가 활성화인 상태만 접근
+		//		if (actors[k] != nullptr && actors[k]->IsActive())
+		//		{
+		//			Renderer::Get().Submit(actors[k]->GetImage(),
+		//				Vector2(x + 1, y + 1 + k), Color::Yellow, 110);
+		//		}
+		//	}
+		//}
 
 		// 정적 변수가 true일 때만 액터 이름을 출력
 		if (isShowActorNames && !actors.empty())
 		{
-			
+
 			for (int k = 0; k < (int)actors.size(); ++k)
 			{
-				Renderer::Get().Submit(actors[k]->GetImage(),
-							Vector2(x + 1, y + 1 + k), Color::Yellow, 110);
+				// 액터가 유효하고 살아 있을 때만 출력
+				if (actors[k] != nullptr && actors[k]->IsActive())
+				{
+					Renderer::Get().Submit(actors[k]->GetImage(),
+						Vector2(x + 1, y + 1 + k), Color::Yellow, 110);
+				}				
 			}
 		}
 
@@ -327,7 +380,7 @@ namespace Wanted
 			if (topRight) topRight->DebugDraw();
 			if (bottomLeft) bottomLeft->DebugDraw();
 			if (bottomRight) bottomRight->DebugDraw();
-		}
+		}		
 	}
 
 	bool QuadNode::Subdivide()

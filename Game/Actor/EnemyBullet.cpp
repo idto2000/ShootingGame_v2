@@ -22,6 +22,8 @@ EnemyBullet::EnemyBullet(
 	// 삼각함수를 이용해 속도 계산.
 	xVelocity = std::cos(radian) * moveSpeed;
 	yVelocity = std::sin(radian) * moveSpeed;
+
+	sortingOrder = 130;
 }
 
 void EnemyBullet::Tick(float deltaTime)

@@ -70,4 +70,12 @@ namespace Wanted
 
 		return coord;
 	}
+	float Vector2::Distance(const Vector2& a, const Vector2& b)
+	{		 
+		float dx = static_cast<float>(a.x - b.x);
+		float dy = static_cast<float>(a.y - b.y);
+
+		// 피타고라스 공식
+		return std::sqrt(dx*dx + dy*dy);
+	}
 }

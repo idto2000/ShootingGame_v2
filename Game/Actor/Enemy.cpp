@@ -36,6 +36,8 @@ Enemy::Enemy(const char* image, int yPosition, AttackPattern pattern)
 
 	// 발사 타이머 목표 시간 설정.
 	timer.SetTargetTime(Util::RandomRange(1.0f, 3.0f));
+
+	sortingOrder = 130;
 }
 
 Enemy::~Enemy()

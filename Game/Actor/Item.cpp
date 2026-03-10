@@ -19,6 +19,8 @@ Item::Item(const char* image, int x, int y, float speed, Color color)
 
 	//칼라 적용
 	this->color = color;
+
+	sortingOrder = 130;
 }
 
 Item::~Item()

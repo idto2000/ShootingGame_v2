@@ -69,6 +69,7 @@ namespace Wanted
 		inline int GetSortingOrder() const { return sortingOrder; }
 
 		inline int GetWidth() const { return width; }
+		inline int GetHeight() const { return height; }
 
 		inline const char* GetImage() const { return image; }
 

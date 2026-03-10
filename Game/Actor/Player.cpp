@@ -9,8 +9,14 @@
 #include "Actor/EnemyDestroyEffect.h"
 //#include "Actor/Shield.h"
 
+#include "Actor/Enemy.h"
+#include "Actor/obstacle.h"
+#include "Actor/EnemyBullet.h"
+//#include "Partition/QuadTree.h"
+
 #include<iostream>
 #include<cmath>//Player의 움직임을 부드럽게 하기 위한 수학함수
+#include<algorithm>
 
 // 전역 변수 초기화.
 Player* Player::instance = nullptr;
@@ -546,6 +552,174 @@ void Player::ApplyBoundaries()
 	}
 }
 
+Actor* Player::FindClosestTarget()
+{
+	//// 1. GameLevle에 존재하는 쿼드 트리 가져옴.
+	//QuadTree* qTree = GameLevel::Get().GetQuadTree();
+	//
+	//// 예외 처리
+	//if (!qTree)
+	//{
+	//	return nullptr;
+	//}
+
+	// GameLevel에 있는 모은 액터를 가져옴
+	const std::vector<Actor*>& allActors = GameLevel::Get().GetActors();
+	
+	//// 2. 위 변경된 크리고 화면 전체 검사.
+	//std::vector<Actor*> nearActors = qTree->Query(this);
+
+	// 검사가 끝나면 플레이어 위치와 크기 원상 복구
+
+	Actor* bestTarget = nullptr;
+
+	// 숫자가 낮을 수록 우선순위가 높음
+	int bestPriority = 999; 
+	float minDistance = 99999.0f; // 최단 거리
+
+	// 내(Player) 몸의 정중앙 좌표 X, Y 구하기
+	float pCenterX = (float)this->GetPosition().x + (this->GetWidth() / 2.0f);
+	float pCenterY = (float)this->GetPosition().y + (this->GetHeight() / 2.0f);
+	Vector2 pCenter((int)pCenterX, (int)pCenterY);
+
+	// 검사
+	for (Actor* actor : allActors)
+	{
+		// 나를 비롯한 비활성화 액터 제외
+		if (!actor || !actor->IsActive() || actor == this)
+		{
+			continue;
+		}
+
+		int currentPriority = 999;
+
+		// 타입에 따른 우선순위 배정
+		if (actor->IsTypeOf<Enemy>())
+		{
+			currentPriority = 1;
+		}
+		else if(actor->IsTypeOf<Obstacle>())
+		{
+			currentPriority = 2;
+		}
+		/*else if(actor->IsTypeOf<EnemyBullet>())
+		{
+			currentPriority = 3;
+		}*/
+
+		// 우선 순위들 중 최단 거리 검색
+		if (currentPriority <= 3)
+		{
+			// 타겟의 몸 정중앙 좌표 X, Y 구하기
+			float tCenterX = (float)actor->GetPosition().x + (actor->GetWidth() / 2.0f);
+			float tCenterY = (float)actor->GetPosition().y + (actor->GetHeight() / 2.0f);
+			Vector2 tCenter((int)tCenterX, (int)tCenterY);
+
+			// 모서리가 아닌 '중심점과 중심점' 사이의 정확한 거리 계산
+			float dist = Vector2::Distance(pCenter, tCenter);
+
+			// 찾은 액터와 거리가 까가우면 타겟
+			if ( dist< minDistance)
+			{
+				minDistance = dist;
+				bestPriority = currentPriority;
+				bestTarget = actor;
+			}
+			// 찾은 액터와 거리가 같다면 우선순위에 따름
+			else if (currentPriority == bestPriority &&
+				currentPriority <bestPriority)
+			{
+				minDistance = dist;
+				bestTarget = actor;
+			}
+		}
+	}
+	return bestTarget;
+}
+
+struct TargetInfo
+{
+	Actor* actor;
+	int priority;
+	float distance;
+};
+
+std::vector<class Actor*> Player::FindMultipleTargets(int count)
+{
+	const std::vector<Actor*>& allActors = GameLevel::Get().GetActors();
+	std::vector<TargetInfo> validTargets;
+
+	float pCenterX = (float)this->GetPosition().x + (this->GetWidth() / 2.0f);
+	float pCenterY = (float)this->GetPosition().y + (this->GetHeight() / 2.0f);
+	Vector2 pCenter((int)pCenterX, (int)pCenterY);
+
+	// 1. 전체 액터를 대상으로 거리 계산
+	for (Actor* actor : allActors)
+	{
+		if (!actor || !actor->IsActive() || actor == nullptr)
+		{
+			continue;
+		}
+
+		int currentProiority = 999;
+
+		// 찾은 액터를 확인 우선순위 적용
+		if (actor->IsTypeOf<Enemy>())
+		{
+			currentProiority = 1;
+		}
+		else if (actor->IsTypeOf<Obstacle>())
+		{
+			currentProiority = 2;
+		}
+		/*else if (actor->IsTypeOf<EnemyBullet>())
+		{
+			currentProiority = 3;
+		}*/
+
+		if (currentProiority <= 3)
+		{
+			float pCenterX = (float)this->GetPosition().x + (this->GetWidth() / 2.0f);
+			float pCenterY = (float)this->GetPosition().y + (this->GetHeight() / 2.0f);
+			Vector2 pCenter((int)pCenterX, (int)pCenterY);			
+			
+			float dist = Vector2::Distance
+			(this->GetPosition(), actor->GetPosition());
+			
+			TargetInfo info;
+			info.actor = actor;
+			info.priority = currentProiority;
+			info.distance = dist;
+
+			validTargets.push_back(info);
+		}
+	}
+
+	// 2. 수집된 대상을 1순위: 최단 거리, 2순위: 우선순위로 정렬
+	// std::sort(시작, 끝, 정렬_규칙)-> algorithm에서 제공하는 정렬 함수
+	// []람다식: a, b를 비교해 true를 반환하며 a를 b보다 앞줄에 세운다.
+	std::sort(validTargets.begin(), validTargets.end(),
+		[](const TargetInfo& a, const TargetInfo& b)
+		{
+			// 거리가 같다면
+			if (a.distance == b.distance)
+			{
+				return a.priority < b.priority;
+			}
+			return a.distance < b.distance;		
+		});
+
+	// 3. 앞에서부터 요청한 개수(count)만큼만 잘라서 반환합니다.
+	std::vector<Actor*> result;
+	int limit = (int)validTargets.size() < count ? (int)validTargets.size() : count;
+	
+	for (int i = 0; i < limit; ++i)
+	{
+		result.push_back(validTargets[i].actor);
+	}
+	return result;
+}
+
 void Player::SetWeaponMode(WeaponMode mode)
 {
 	currentMode = mode;
@@ -586,88 +760,92 @@ void Player::SetWeaponMode(WeaponMode mode)
 
 void Player::ProcessFiring(float deltaTime)
 {
-	//현재 연사가 아닌 경우 
-	if(!isBursting)
+	// 1. 1발(단발) 및 3발(부채꼴) 모드: 모으지 않고 '즉시 동시 발사'
+	if (currentMode == WeaponMode::singleShot || currentMode == WeaponMode::TripleBurst)
 	{
 		mainTimer.Tick(deltaTime);
 		if (mainTimer.IsTimeOut())
 		{
 			mainTimer.Reset();
+			Vector2 bulletPos(position.x + (width / 2), position.y);
 
-			//발사시작
-			isBursting = true;
-			burstCountCurrent = 0;
-
-			//점사 타이머 리셋
-			burstTimer.Reset();
-		}
-	}
-	else
-	{
-		burstTimer.Tick(deltaTime);
-
-		// 첫 발이거나, 타이머가 다 됐을 때 발사
-		if (burstCountCurrent == 0 || burstTimer.IsTimeOut())
-		{
-			burstTimer.Reset();
-
-			// 현재 키 입력 상태 확인
-			bool up = Input::Get().GetKey(VK_UP);
-			bool down = Input::Get().GetKey(VK_DOWN);
-			bool left = Input::Get().GetKey(VK_LEFT);
-			bool right = Input::Get().GetKey(VK_RIGHT);
-			
-			// 키 입력에 따른 발사 각도(콘솔 좌표계 기준 270도 위쪽)
-			float fireAngle = 270.0f;
-
-			if (up && right)
+			if (currentMode == WeaponMode::singleShot)
 			{
-				fireAngle = 315.0f;
-			}
-			else if (up && left)
-			{
-				fireAngle = 225.0f;
-			}
-			else if (down && right)
-			{
-				fireAngle = 45.0f;
-			}
-			else if (down && left)
-			{
-				fireAngle = 135.0f;
-			}
-			else if (up)
-			{
-				fireAngle = 270.0f;
-			}
-			else if (down)
-			{
-				fireAngle = 90.0f;
-			}
-			else if (left)
-			{
-				fireAngle = 180.0f;
-			}
-			else if (right)
-			{
-				fireAngle = 0.0f;
+				// [패턴 1] 1발: 가장 가까운 적에게 스마트 타겟팅
+				float fireAngle = 270.0f;
+				Actor* target = FindClosestTarget();
+				if (target)
+				{
+					float dx = static_cast<float>(target->GetPosition().x - this->GetPosition().x);
+					float dy = static_cast<float>(target->GetPosition().y - this->GetPosition().y);
+					fireAngle = std::atan2(dy, dx) * (180.0f / 3.141592f);
+				}
+				GetOwner()->AddNewActor(new PlayerBullet(bulletPos, fireAngle, bulletSpeed));
 			}
 			else
 			{
-				fireAngle = 270.0f;
+				// [패턴 2] 3발: 부채꼴 샷건
+				float centerAngle = 270.0f;
+				Actor* target = FindClosestTarget();
+				if (target)
+				{
+					float dx = static_cast<float>(target->GetPosition().x - this->GetPosition().x);
+					float dy = static_cast<float>(target->GetPosition().y - this->GetPosition().y);
+					centerAngle = std::atan2(dy, dx) * (180.0f / 3.141592f);
+				}
+
+				// 타겟을 향한 중앙 각도를 기준으로 -15도, 0도, +15도 방향 3발 흩뿌리기
+				float angles[3] = { centerAngle - 15.0f, centerAngle, centerAngle + 15.0f };
+				for (int i = 0; i < 3; ++i)
+				{
+					GetOwner()->AddNewActor(new PlayerBullet(bulletPos, angles[i], bulletSpeed));
+				}
 			}
-
-			//총알 생성 위치 조정(플레이어 중앙)
-			Vector2 bulletPos(position.x + (width / 2), position.y);
-
-			//현재 총알 생성(각도/ 속도)
-			GetOwner()->AddNewActor(new PlayerBullet(bulletPos, fireAngle, bulletSpeed));
-
-			burstCountCurrent++;
-
-			if (burstCountCurrent >= burstCountTotal)
+		}
+	}
+	// 2. 7발(다중 록온) 모드: 0.1초 간격으로 타겟을 바꿔가며 '순차적 연사'
+	else if (currentMode == WeaponMode::SeriesShot)
+	{
+		if (!isBursting)
+		{
+			mainTimer.Tick(deltaTime);
+			if (mainTimer.IsTimeOut())
 			{
-				isBursting = false;
+				mainTimer.Reset();
+				isBursting = true;
+				burstCountCurrent = 0;
+				burstTimer.Reset();
+			}
+		}
+		else
+		{
+			burstTimer.Tick(deltaTime);
+			if (burstCountCurrent == 0 || burstTimer.IsTimeOut())
+			{
+				burstTimer.Reset();
+				Vector2 bulletPos(position.x + (width / 2), position.y);
+				float fireAngle = 270.0f;
+
+				// 매 발사(0.1초)마다 최대 7개의 타겟을 다시 찾음
+				std::vector<Actor*> targets = FindMultipleTargets(7);
+
+				if (!targets.empty())
+				{
+					// 현재 몇 번째 쏘는 총알인지에 따라 타겟을 다르게 배정 (Round-Robin)
+					Actor* target = targets[burstCountCurrent % targets.size()];
+					float dx = static_cast<float>(target->GetPosition().x - this->GetPosition().x);
+					float dy = static_cast<float>(target->GetPosition().y - this->GetPosition().y);
+					fireAngle = std::atan2(dy, dx) * (180.0f / 3.141592f);
+				}
+
+				GetOwner()->AddNewActor(new PlayerBullet(bulletPos, fireAngle, bulletSpeed));
+				burstCountCurrent++;
+
+				// 7발을 다 쏘면 연사 종료
+				if (burstCountCurrent >= burstCountTotal)
+				{
+					isBursting = false;
+				}
 			}
 		}
 	}
