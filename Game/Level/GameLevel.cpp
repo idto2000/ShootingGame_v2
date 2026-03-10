@@ -170,6 +170,11 @@ void GameLevel::Tick(float deltaTime)
 			QuadNode::isShowActorNames = !QuadNode::isShowActorNames;
 	}
 	
+	// 키 입력을 하면 오브젝트 명 출력 시각화 모드 On/ Off
+	if (Input::Get().GetKeyDown('I'))
+	{
+		isShowAStar = !isShowAStar;
+	}
 
 	// 새로운 트리를 만들기 전에 남은 트리를 삭제
 	if (quadTree != nullptr)
@@ -228,6 +233,11 @@ void GameLevel::Draw()
 		}
 	}
 
+	// A* 시각화가 켜져있을 때 화면
+	if (isShowAStar)
+	{
+		Renderer::Get().Submit("A-STAR DEBUG : ON", Vector2(1, 4), Color::Green, 200);
+	}
 	
 	if (isPlayerDead)
 	{
@@ -498,7 +508,18 @@ void GameLevel::ProcessCollisionPlayerAndItem()
 			if (player->TestIntersect(item))
 			{
 				item->TakeDamaged(); // 아이템 획득 처리
-				coin += 5;
+
+				// 유도탄이 5발 미만아라면 장전
+				if (player->homingAmmo < player->MAX_HOMING_AMMO)
+				{
+					player->homingAmmo++;
+				}
+
+				// 이미 5발이 꽉 차있다면, 보너스 코인 10
+				else
+				{
+					coin += 10;
+				}
 				// 플레이어가 여러 아이템을 동시에 먹을 수도 있으므로 break 생략
 			}
 		}
@@ -544,7 +565,15 @@ void GameLevel::ProcessCollisionPlayerBulletAndEnemyBullet()
 
 void GameLevel::ShowScore()
 {
-	sprintf_s(scoreString, 128, "Score: %d             Coin: %d", score, coin);
+	// 플레이어가 살아있을 때만 현재 탄약을 가져 온다.
+	int currentAmmo = 0;
+	if (!isPlayerDead)
+	{
+		currentAmmo = Player::Get().homingAmmo;
+	}
+
+
+	sprintf_s(scoreString, 128, "Score: %d     Coin: %d     Homing: %d / 5", score, coin, currentAmmo);
 	Renderer::Get().Submit(scoreString,	Vector2(1, Engine::Get().GetHeight() - 1), Color::White, 200);
 
 	// --- 디버깅용 속도 업 상태 표시 추가 ---

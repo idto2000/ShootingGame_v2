@@ -21,6 +21,9 @@ public:
 	int score = 0;
 	int coin = 0;
 
+	// [시각화] 외부에서 상태 읽기만 할 수 있는 Gettr함수
+	inline bool IsShowAStar() const { return isShowAStar; }
+
 	//코인을 사용한 아이템 함수
 	void KillAllEemies();
 	void PlayerShield();
@@ -75,4 +78,6 @@ private:
 
 	// QuadTree 시각화 변수 선언
 	bool isShowQuadTree = false;
+
+	bool isShowAStar = false;
 };

@@ -22,7 +22,7 @@ class PathFinder
 public:
 
 	// 길찾기 결과 반환
-	std::vector<Vector2> FindPath(const Vector2& startPos,
+	static std::vector<Vector2> FindPath(const Vector2& startPos,
 		const Vector2& targetPos);
 
 

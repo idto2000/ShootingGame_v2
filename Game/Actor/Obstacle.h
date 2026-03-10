@@ -47,7 +47,7 @@ private:
 	float yPosition = 0.0f;
 	float moveSpeed = 0.0f;
 
-	float itemDropChance = 1.03f;
+	float itemDropChance = 0.3f;
 	int hp = 1;
 };
 

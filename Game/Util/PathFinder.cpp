@@ -29,7 +29,7 @@ std::vector<Vector2> PathFinder::FindPath(
 	std::vector<Vector2> finalPath;
 
 	// 타겟이 화면 밖이거나 비정상 위치면 직전 경로 반환
-	if (IsInRange(targetGridY, targetGridY) == false)
+	if (IsInRange(targetGridX, targetGridY) == false)
 	{
 		finalPath.push_back((targetPos));
 		return finalPath;
@@ -83,13 +83,13 @@ std::vector<Vector2> PathFinder::FindPath(
 			float currentF = GetFCost(currentNode);
 			float nexF = GetFCost(openList[i]);
 
-			if (nexF > currentF)
+			if (nexF < currentF)
 			{
 				currentNode = openList[i];
 				lowestIndex = i;
 			}
 			else if (nexF == currentF &&
-				openList[i]->hCost < currentNode->gCost)
+				openList[i]->hCost < currentNode->hCost)
 			{
 				currentNode = openList[i];
 				lowestIndex = i;
@@ -148,7 +148,7 @@ std::vector<Vector2> PathFinder::FindPath(
 			{
 				if (node->x == newX && node->y == newY)
 				{
-					inClosed = node;
+					neighbor = node;
 					break;
 				}
 			}
@@ -161,7 +161,8 @@ std::vector<Vector2> PathFinder::FindPath(
 				neighbor->y = newY;
 				neighbor->gCost = newGCost;
 				neighbor->hCost = CalculateHeurisic(newX, newY,
-					targetGridX, targetGridX);
+					targetGridX, targetGridY);
+				neighbor->parent = currentNode;
 				
 				openList.push_back(neighbor);
 			}

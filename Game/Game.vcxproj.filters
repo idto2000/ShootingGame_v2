@@ -69,6 +69,12 @@
     <ClCompile Include="Util\PathFinder.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Actor\PathEffect.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Actor\HomngBullet.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Level\GameLevel.h">
@@ -120,6 +126,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Util\PathFinder.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Actor\PathEffect.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Actor\HomngBullet.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

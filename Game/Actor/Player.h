@@ -43,10 +43,15 @@ public:
 		return instance;
 	}
 
+public:
+
+	// 유도탄 탄약 
+	int homingAmmo = 999;
+	const int MAX_HOMING_AMMO = 999;
 
 private:
 	virtual void Tick(float deltaTime) override;
-
+		
 	// 오른쪽으로 이동하는 함수.
 	void MoveRight(float deltaTime);
 	
@@ -84,6 +89,26 @@ private:
 
 	// 발사 가능여부 확인 함수.
 	bool CanShoot() const;
+
+private:
+
+	// 재밍관련 변수 및 함수
+	bool isJamming = false;
+
+	// 락온 타겟 초기화
+	class Actor* lockedTarget = nullptr;
+
+	// 궤적 이펙트를 그리는 주기(0.05초)
+	Timer jammingEffectTimer;
+
+	// 도배 방지용 발사 쿨 타임(1초)
+	Timer homingCooldownTimer;
+
+	// Enemy만 추적하는 레이더
+	class Actor* FindClosestEnemyOnly();
+
+	// 재밍 동작 및 유도탄 발사 처리
+	void ProcessHomingMissile(float deltaTime);
 
 private:
 	float ApplyFricition(float currentVelocity, float friction, float deltaTime);

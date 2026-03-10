@@ -12,6 +12,10 @@
 #include "Actor/Enemy.h"
 #include "Actor/obstacle.h"
 #include "Actor/EnemyBullet.h"
+
+#include "Util/PathFinder.h"
+#include "HomngBullet.h"
+#include "Actor/PathEffect.h"
 //#include "Partition/QuadTree.h"
 
 #include<iostream>
@@ -47,6 +51,14 @@ Player::Player()
 
 	// 플레이어의 출력 우선순위
 	sortingOrder = 150;
+
+	// 재밍 타이머 초기화
+	jammingEffectTimer.SetTargetTime(0.05f);
+	jammingEffectTimer.Reset();
+
+	// 유도탄 발사 쿨 타임 초기화(1초)
+	homingCooldownTimer.SetTargetTime(1.0f);
+	homingCooldownTimer.Reset();
 }
 
 Player::~Player()
@@ -320,6 +332,9 @@ void Player::Tick(float deltaTime)
 	// 총알 발사 함수
 	ProcessFiring(deltaTime);
 
+	// 유도탄 재밍 및 발사 
+	ProcessHomingMissile(deltaTime);
+
 	// 총알을 키 입력에 따른 발사로 변경
 
 
@@ -486,6 +501,119 @@ bool Player::CanShoot() const
 	return timer.IsTimeOut();
 }
 
+Actor* Player::FindClosestEnemyOnly()
+{
+	const std::vector<Actor*>& allActors = GameLevel::Get().GetActors();
+	Actor* bestTarget = nullptr;
+	float minDistance = 99999.0f; 
+
+	float pCenterX = (float)this->GetPosition().x + (this->GetWidth() / 2.0f);
+	float pCenterY = (float)this->GetPosition().y + (this->GetHeight() / 2.0f);
+	Vector2 pCenter((int)pCenterX, (int)pCenterY);
+
+	for (Actor* actor : allActors)
+	{
+		// 적(Enemy)이 아니면 완전히 무시합니다.
+		if (actor != nullptr && actor->IsActive() == true && actor->IsTypeOf<Enemy>())
+		{
+			float tCenterX = (float)actor->GetPosition().x + (actor->GetWidth() / 2.0f);
+			float tCenterY = (float)actor->GetPosition().y + (actor->GetHeight() / 2.0f);
+			Vector2 tCenter((int)tCenterX, (int)tCenterY);
+			
+			float dist = Vector2::Distance(pCenter, tCenter);
+
+			if (dist < minDistance)
+			{
+				minDistance = dist;
+				bestTarget = actor;
+			}
+		}
+	}
+	return bestTarget;
+}
+
+// =========================================================
+// [복구됨] Shift 재밍 시각화 및 Z키 발사 로직 (1번만 작성)
+// =========================================================
+void Player::ProcessHomingMissile(float deltaTime)
+{
+	homingCooldownTimer.Tick(deltaTime);
+	jammingEffectTimer.Tick(deltaTime);
+
+	// [재밍 모드] Shift 키 누름 + 쿨타임 지남 + 탄약 있음
+	if (Input::Get().GetKey(VK_SHIFT) == true && homingCooldownTimer.IsTimeOut()
+		== true && homingAmmo > 0)
+	{
+		isJamming = true;
+		//lockedTarget = FindClosestEnemyOnly();
+
+		if (lockedTarget == nullptr || lockedTarget->IsActive() == false)
+		{
+			lockedTarget = FindClosestEnemyOnly();
+		}
+
+		// 화면에 적이 있을 때만 궤적(녹색 길)을 그립니다.
+		if (lockedTarget != nullptr)
+		{
+			Vector2 tPos = lockedTarget->GetPosition();
+			Vector2 leftPos(tPos.x - 2, tPos.y); // 적의 왼쪽
+			Vector2 rightPos(tPos.x + lockedTarget->GetWidth() + 1, tPos.y); // 적의 오른쪽
+
+			Renderer::Get().Submit("[", leftPos, Color::Red, 250);
+			Renderer::Get().Submit("]", rightPos, Color::Red, 250);
+
+			float pCenterX = (float)this->GetPosition().x + (this->GetWidth() / 2.0f);
+			float pCenterY = (float)this->GetPosition().y + (this->GetHeight() / 2.0f);
+			Vector2 startPos((int)pCenterX, (int)pCenterY);
+
+			float tCenterX = (float)lockedTarget->GetPosition().x + (lockedTarget->GetWidth() / 2.0f);
+			float tCenterY = (float)lockedTarget->GetPosition().y + (lockedTarget->GetHeight() / 2.0f);
+			Vector2 targetPos((int)tCenterX, (int)tCenterY);
+
+			// A* 두뇌를 돌려 최적 경로 계산
+			std::vector<Vector2> path = PathFinder::FindPath(startPos, targetPos);
+
+			// 0.05초 간격으로 경로 위에 이펙트 뿌리기
+			if (GameLevel::Get().IsShowAStar() == true)
+			{
+				if (jammingEffectTimer.IsTimeOut() == true && path.empty() == false)
+				{
+					jammingEffectTimer.Reset();
+					for (int i = 0; i < (int)path.size(); ++i)
+					{
+						GetOwner()->AddNewActor(new PathEffect(path[i]));
+					}
+				}
+			}
+		}
+	}
+	else
+	{
+		isJamming = false;
+		lockedTarget = nullptr;
+	}
+
+	// [발사] 재밍(록온) 상태에서 'Z' 키를 누르면 발사!
+	if (isJamming == true && Input::Get().GetKeyDown('Z') == true)
+	{
+		if (lockedTarget != nullptr)
+		{
+			// 플레이어 중앙 좌표 계산
+			float pCenterX = (float)this->GetPosition().x + (this->GetWidth() / 2.0f);
+			float pCenterY = (float)this->GetPosition().y + (this->GetHeight() / 2.0f);
+
+			Vector2 spawnPos((int)pCenterX, (int)pCenterY);
+
+			GetOwner()->AddNewActor(new HomingBullet(this->GetPosition(), lockedTarget));
+			
+			homingAmmo = homingAmmo - 1; // 탄약 1개 소모
+			homingCooldownTimer.Reset(); // 1초간 도배 방지 락온
+			isJamming = false;
+			lockedTarget = nullptr;
+		}
+	}
+}
+
 float Player::ApplyFricition(float currentVelocity, float friction, float deltaTime)
 {
 	//마찰력 구하기
@@ -626,10 +754,10 @@ Actor* Player::FindClosestTarget()
 				bestTarget = actor;
 			}
 			// 찾은 액터와 거리가 같다면 우선순위에 따름
-			else if (currentPriority == bestPriority &&
+			else if (dist == minDistance &&
 				currentPriority <bestPriority)
 			{
-				minDistance = dist;
+				bestPriority = currentPriority;
 				bestTarget = actor;
 			}
 		}
